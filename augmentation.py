@@ -1,24 +1,14 @@
 import os
-import zipfile
-import shutil
 import cv2
 import numpy as np
-import albumentations as A
-
-import matplotlib.pyplot as plt
 import imutils
 import csv
 
 
-
-
-    
-
-
-#legggi ricorsivamente tutti i file nella cartella
+# funzione che legge ricorsivamente tutti i file .png e .jpg nella cartella
 def read_files(path):
     files = []
-    for root, dirs, filenames in os.walk(path):
+    for root, filenames in os.walk(path):
         for f in filenames:
             #se è png o jpg
             if f.endswith('.png') or f.endswith('.jpg'):
@@ -26,7 +16,7 @@ def read_files(path):
     return files
 
 
-#leggi tutte le immagini e le maschere
+# funzione che legge tutte le immagini e le maschere
 def read_images_and_masks(images_path, masks_path):
     images = []
     masks = []
@@ -36,7 +26,7 @@ def read_images_and_masks(images_path, masks_path):
     return images, masks
 
 
-#trova la pendenza e l'ampiezza della maschera
+#funzione che per trovare la pendenza e l'ampiezza della maschera
 def find_slope_and_amplitude(mask):
     #trova i pixel bianchi
     points = np.where(np.all(mask == [255,255,255], axis=2) == True)
@@ -60,12 +50,12 @@ def find_slope_and_amplitude(mask):
     #calcola ampiezza
     amplitude = top_right[0] - top_left[0]
     amplitude2 = bottom_right[0] - bottom_left[0]
-    #max of amplitude and amplitude2
+    #l'ampiezza è quella maggiore
     amplitude = max(amplitude, amplitude2)
 
     return angle, amplitude
 
-#augment le immagini e le maschere tramite albumentations
+# augmentation delle immagini e delle maschere
 def rotate_and_mirror(images, masks):
     rotated_images = []
     rotated_masks = []
@@ -102,47 +92,6 @@ def rotate_and_mirror(images, masks):
         mirrored_masks.append(mirrored_mask)
         mirrored_images_angles.append(mirrored_angle)
         
-    '''
-    for image, mask in zip(images, masks):
-        angle, amplitude = find_slope_and_amplitude(mask)
-        #print(angle, amplitude)
-        #rotate image by random angle between 0° and 180°
-        rotation_angle = np.random.randint(0,180)
-        rotated_image = imutils.rotate(image, rotation_angle)
-        rotated_angle = angle + rotation_angle
-        if rotated_angle > 180:
-            rotated_angle = rotated_angle - 180
-
-        #show image
-        #print("L'angolo di questa immagine è:",angle)
-        #print("L'ampiezza di questa immagine è:",amplitude)
-
-        
-        plt.imshow(image)
-        plt.show()
-
-        print("L'angolo di questa immagine RUOTATA è:",rotated_angle)
-        print("L'ampiezza di questa immagine è:",amplitude)
-
-        plt.imshow(rotated_image)
-        plt.show()
-
-        
-
-        
-
-        
-
-        # transform = A.Compose([
-        #     A.HorizontalFlip(p=0.5),
-        #     A.RandomBrightnessContrast(p=0.2),
-        #     ])
-        # #ruota l'immagine di un valore casuale tra -90 e 90
-        # rotate = A.Rotate(limit=90, border_mode=cv2.BORDER_CONSTANT, value=0)
-        # rotated = rotate(image=image, mask=mask)
-        # rotated_images.append(rotated['image'])
-        # rotated_masks.append(rotated['mask'])
-        '''
     return images_amplitude, images_angle, rotated_images, rotated_masks, rotated_images_angles, mirrored_images, mirrored_masks, mirrored_images_angles
 
 
@@ -174,20 +123,18 @@ def change_contrast(aug_imgs):
         changed.append(img)
     return changed
     
+
 images_path = read_files('zipper_aug/zipper_aug/train')
 masks_path = read_files('zipper_aug/zipper_aug/masks')
 
 images, masks = read_images_and_masks(images_path, masks_path)
 
-print("ci sono",len(images),"immagini e",len(masks),"maschere ORIGINALI")
+print("ci sono",len(images),"immagini e",len(masks),"maschere iniaizalmente")
 
 amplitudes, angles, rotated_images, rotated_masks, rotated_angles, mirrored_images, mirrored_masks, mirrored_angles  = rotate_and_mirror(images, masks)
 
-print("ci sono",len(rotated_images),"immagini e",len(rotated_masks),"maschere RUOTATE")
 
-print("ci sono",len(mirrored_images),"immagini e",len(mirrored_masks),"maschere SPECCHIATE")
-
-#concatena le immagini e le maschere
+#concatena le immagini e le maschere e le modifica ogni volta
 augmented_images = images + rotated_images + mirrored_images
 augmented_masks = masks + rotated_masks + mirrored_masks
 augmented_amplitudes = amplitudes + amplitudes + amplitudes
@@ -212,30 +159,22 @@ augmented_amplitudes = augmented_amplitudes + augmented_amplitudes
 augmented_angles = augmented_angles + augmented_angles
 
 
+print("Ora sono presenti ",len(augmented_images), "immagini.")
+print("Ora sono presenti ",len(augmented_masks), "maschere.")
 
 
-
-
-print(len(augmented_images))
-print(len(augmented_masks))
-
-
-print("\n\n\n\n\n\n\n")
-print(augmented_amplitudes[16], augmented_amplitudes[416], augmented_amplitudes[816], augmented_amplitudes[1216], augmented_amplitudes[1616], augmented_amplitudes[2016])
-print(augmented_angles[16], augmented_angles[416], augmented_angles[816], augmented_angles[1216], augmented_angles[1616], augmented_angles[2016])
-
-#crea una cartella e mettici dentro augmented_images e augmented_masks
+# se non esistono, crea le cartelle per le immagini e le maschere agmented
 if not os.path.exists('augmented_images'):
     os.mkdir('augmented_images')
 if not os.path.exists('augmented_masks'):
     os.mkdir('augmented_masks')
 
-#salva le immagini e le maschere
+# salva le immagini e le maschere
 for i, (image, mask) in enumerate(zip(augmented_images, augmented_masks)):
     cv2.imwrite('augmented_images/'+str(i)+'.png', image)
     cv2.imwrite('augmented_masks/'+str(i)+'.png', mask)
 
-#crea un file csv con le ampiezze e gli angoli
+# crea un file csv con le ampiezze e gli angoli
 with open('augmented_amplitudes.csv', 'w', newline='') as myfile:
     wr = csv.writer(myfile, quoting=csv.QUOTE_ALL)
     wr.writerow(augmented_amplitudes)
@@ -243,7 +182,3 @@ with open('augmented_amplitudes.csv', 'w', newline='') as myfile:
 with open('augmented_angles.csv', 'w', newline='') as myfile:
     wr = csv.writer(myfile, quoting=csv.QUOTE_ALL)
     wr.writerow(augmented_angles)
-
-
-
-print("AIO' FINI' BELOOOOOOOO")
